@@ -1,56 +1,93 @@
+#!/usr/bin/php
 <?php
-/* ==============================================
-Код оформляется в соответсвиии с стандартом PSR-2
-============================================== */
-// TODO брать имя файла карты сайта из robots.txt
+/* ===============================================
+Код оформляется в соответсвиии со стандартом PSR-2
+=============================================== */
 // TODO проводить валидацию карты после завершения обработки
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-	<meta charset="UTF-8">
-	<title>Служебный скрипт</title>
-	<meta name="robots" content="noindex">
-	<meta name="googlebot" content="noindex">
-</head>
-<body>
-<noindex>
-<h1>Чистим карту сайта</h1>
-<?
-// =========================================
-// $aFaile = file_get_contents('http://parfumes.ru/robots.txt');
-$use_web = false;
+// TODO Оформить в виде класса
+// TODO Добавть ключь cli - HTTP_HOST
+// TODO обрабатывать 'Clean-param'
+
 $total = 0;
 $found = false;
 $need_write = false;
 $was_cleaned = false;
-$sFileLoc = 'sitemap.xml';
-$rFile = 'http://'.$_SERVER['HTTP_HOST'].'/robots.txt';
-if($use_web) $sFile = 'http://'.$_SERVER['HTTP_HOST'].'/'.$sFileLoc;
-	else $sFile = $sFileLoc;
-if(file_exists('robots.txt'))
+
+// опеределяем среду выполнения
+// if(PHP_SAPI === 'cli' || empty($_SERVER['REMOTE_ADDR']))
+if(PHP_SAPI === 'cli')
+{
+	define('MODE', 'console');
+	if(count($argv) > 0)
 	{
-		$sR = file('robots.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-		echo '<p>локальный файл robots.txt найден</p>';
-		if(!chk($sR)) die('не удалось открыть robots.txt');
+		global $argv; // меняем область видимости для использования в классах
+
+		// получаем имя файла из коммандной строки
+		$options = getopt("f:");
+		// имя файла карты сайта, переопределяется ниже из robots.txt
+		$_GET['sm'] = preg_match('#(\w+\.xml)#i', $options['f'], $fn) ? $fn[1] : 'sitemap.xml';
 	}
+
+}
 else
-	{
+{
+	// имя файла карты сайта по умолчанию, переопределяется ниже
+	if(empty($_GET['sm'])) $_GET['sm'] = 'sitemap.xml';
+		// this prevents "Code Injection"
+		else $_GET['sm'] = preg_match('#(\w+\.xml)#i', $_GET['sm'], $fn) ? $fn[1] : 'sitemap.xml'; 
+	?>
+	<!DOCTYPE html>
+	<html lang="ru">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="robots" content="noindex">
+		<meta name="googlebot" content="noindex">
+		<title>Обработка карты сайта XML</title>
+	</head>
+	<body>
+	<noindex>
+	<h1>Чистим карту сайта</h1>
+	<?
+}
+
+if(file_exists('robots.txt'))
+{
+	$sR = file('robots.txt', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+	if(!chk($sR)) die('не удалось открыть локальный robots.txt');
+	log_push('локальный файл <tt>robots.txt найден</tt>');
+}
+elseif(!empty($_SERVER['HTTP_HOST']))
+{
+	$rFile = 'http://'.$_SERVER['HTTP_HOST'].'/robots.txt';
 	$sR = file($rFile);
-	echo '<p>используем HTTP запрос robots.txt</p>';
-	if(!chk($sR)) die('не удалось открыть robots.txt'.$rFile);
-	}
+	if(!chk($sR)) die('не удалось открыть robots.txt через CGI'.$rFile);
+	log_push('файл <tt>robots.txt</tt> получен через CGI запрос');
+}
+
 foreach ($sR as $key => $value)
 {
-	// if(!stripos($value, 'Disallow')) unset($sR[$key]);
-	if(!preg_match('#^\s*Disallow\s*:#i', $value)) unset($sR[$key]);
+	if(preg_match('#Sitemap\s*:\s*.*[^/]*/(\S+\.\S+)\s*$#i', $value, $fn))
+	{
+		$_GET['sm'] = $fn[1];
+		log_push('Имя файла карты сайта ('.$_GET['sm'].') взято из <tt>robots.txt</tt>');
+		unset($sR[$key]);
+		continue;
+	}
+	else
+	{
+		// if(!stripos($value, 'Disallow'))
+		if(!preg_match('#^\s*Disallow\s*:#i', $value))
+		{
+			unset($sR[$key]);
+			continue;
+		}
 		else $sR[$key] = preg_replace('#^\s*Disallow\s*:\s*#i', '', $value);
+	}
 }
+
 $sR = array_unique($sR);
-echo '<p>найдено '.sizeof($sR).' правил(а)</p>';
-// echo '<pre>';
-// echo print_r($sR);
-// echo '</pre>';
+log_push('найдено '.sizeof($sR).' правил(а)');
+
 foreach($sR as $sRule) 
 {
     $sRepFrom = array( '*',  '?' );
@@ -64,31 +101,43 @@ foreach($sR as $sRule)
     if(!empty($sRule))
     {
 	    $sRule = '#'.$sRule.'#i';
-	    echo '<p> '.$sRule." </p>";
+	    log_push($sRule);
 	    $sRules[] = $sRule;
 	}
 }
-if($use_web)
+
+if(file_exists($_GET['sm']))
 {
+	$sFile = $_GET['sm'];
 	$sM = file($sFile);
-	echo '<p>карта сайта найдена</p>';
 	if(!chk($sM)) die('не удалось прочитать'.$sFile);
+	log_push('карта сайта найдена');
 }
-elseif(file_exists($sFile))
+elseif(!empty($_SERVER['HTTP_HOST']))
 {
-	//$handle = fopen($sFile, "r+");
-	$sM = file($sFile);
-	echo '<p>карта сайта найдена</p>';
+	$sFile = 'http://'.$_SERVER['HTTP_HOST'].'/'.$_GET['sm'];
+	$sM = @file($sFile);
 	if(!chk($sM)) die('не удалось прочитать'.$sFile);
+	log_push('карта сайта найдена');
 }
-else die('не удалось открыть '.$sFile);
-echo '<hr>';
+else die('не удалось открыть '.$_GET['sm']);
+
 foreach ($sM as $k => $v)
 {
+	if(preg_match('#</?sitemapindex>#i', $v) ||
+		preg_match('#</?sitemap>#i', $v))
+	{
+		log_push('Ошибка!', 'error');
+		die('Этот скрипт пока не может обрабатывать вложенные катры!');
+	}
+
+	// удаляем лишние дискрипторы
 	if( !preg_match('#<\?xml#i', $v) &&
 		!preg_match('#</?urlset#i', $v) &&
 		!preg_match('#</?url>#i', $v) &&
-		!preg_match('#</?loc>#i', $v)
+		!preg_match('#</?loc>#i', $v) &&
+		!preg_match('#</?sitemapindex>#i', $v) &&
+		!preg_match('#</?sitemap>#i', $v)
 		)
 		{
 			$sM[$k] = '';
@@ -105,12 +154,10 @@ foreach ($sMapLines as $k => $v)
 		$found = false;
 		continue;
 	}
-		// echo '<p>'.$v;
 		foreach ($sRules as $rule)
 		{
 			if(preg_match('#<loc>#i', $v) && preg_match($rule, $v))
 			{
-				// echo '<b> - найдено!!!</b>';
 				$total++;
 				$found = true;
 				$need_write = true;
@@ -119,42 +166,66 @@ foreach ($sMapLines as $k => $v)
 		if($found === false)
 		{
 			$sMnew[$k]=$v;
-			// echo '<p>'.htmlentities($v).'</p>';
 		}
 		else
 		{
 			array_pop($sMnew);
 			$found = 'skip';
 		}
-		// echo '</p>';
 }
-if($total > 0)
-{
-	echo '<p>Найдено '.$total.'</p>';
-}
-if($was_cleaned)
-{
-	echo '<p>Лишние дескрипторы были удалены.</p>';
-}
+
+if($total > 0) log_push('Найдено '.$total);
+if($was_cleaned) log_push('Лишние дескрипторы были удалены.');
+
 if($need_write)
 {
-	echo '<hr>';
-	$sMnew = array_filter($sMnew);
+	if(is_array($sMnew)) $sMnew = array_filter($sMnew); // удаляем пустые элементы
+		// else die('записывать нечего');
 	$sMnewFile = implode($sMnew);
-	rename($sFileLoc, $sFileLoc.'.bak');
-	// print_r($sMnewFile);
-	echo (file_put_contents($sFileLoc, $sMnewFile)) ? '<p>Новая карта записана</p>' : '<p>Ошибка записи новой карты</p>';
+	rename($_GET['sm'], $_GET['sm'].'.bak');
+	
+	log_push( (file_put_contents($_GET['sm'], $sMnewFile)) ? 'Новая карта записана' : 'Ошибка записи новой карты' );
 }
-else echo 'Все хорошо, делать нечего!';
+else log_push('Все хорошо, делать нечего!');
 // =========================================
-function chk ($arr)
-{
-$arr = array_filter($arr);
-if (empty($arr)) return false;
-	else return true;
-}
-// fclose($handle);
+
+if(!defined('MODE')):
 ?>
 <noindex>
 </body>
 </html>
+<?php
+endif;
+
+function log_push ($log_content='', $type='message')
+{
+	if($type == 'message')
+	{
+		if(defined('MODE') && MODE == 'console') fwrite(STDOUT, $log_content."\n"); // echo $log_content."\n";
+			else echo '<p>'.$log_content."<p>";
+	}
+	else
+	{
+		if(defined(MODE) && MODE == 'console')
+		{
+			fwrite(STDOUT, $log_content."\n"); // echo $log_content."\n";
+			fwrite(STDERR, $log_content."\n"); // echo $log_content."\n";
+		}
+			else echo '<p style="color:red;">'.$log_content."<p>";
+	}
+
+	return true;
+}
+
+function chk ($arr)
+{
+	if(is_array($arr))
+	{
+		$arr = array_filter($arr); // удаляем пустые элементы
+		if (empty($arr)) return false;
+			else return true;
+	}
+	else return false;
+}
+
+?>
