@@ -78,7 +78,11 @@ foreach ($sR as $key => $value)
 	}
 	else
 	{
-		// if(!stripos($value, 'Disallow'))
+		if(!stripos($value, '#'))
+		{
+			$value = preg_replace('|^([^#]*)#|i', "$1", $value); // comment removing
+		}
+		
 		if(!preg_match('#^\s*Disallow\s*:#i', $value))
 		{
 			unset($sR[$key]);
