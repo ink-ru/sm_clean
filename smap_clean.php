@@ -11,6 +11,8 @@ CopyLeft - https://github.com/ink-ru/sm_clean
 // TODO Добавть ключь cli - HTTP_HOST
 // TODO обрабатывать 'Clean-param'
 
+set_time_limit(240);
+
 $total = 0;
 $found = false;
 $need_write = false;
