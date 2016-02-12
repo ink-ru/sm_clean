@@ -10,6 +10,7 @@ CopyLeft - https://github.com/ink-ru/sm_clean
 // TODO Оформить в виде класса
 // TODO Добавть ключь cli - HTTP_HOST
 // TODO обрабатывать 'Clean-param'
+// TODO разбивать однострочные файлы на строки
 
 set_time_limit(240);
 
