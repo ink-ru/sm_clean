@@ -81,9 +81,9 @@ foreach ($sR as $key => $value)
 	}
 	else
 	{
-		if(!stripos($value, '#'))
+		if(strpos($value, '#'))
 		{
-			$value = preg_replace('|^([^#]*)#|i', "$1", $value); // comment removing
+			$value = preg_replace('~^([^#]*)#~i', "$1", $value); // comment removing
 		}
 		
 		if(!preg_match('#^\s*Disallow\s*:#i', $value))
