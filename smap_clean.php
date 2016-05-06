@@ -11,6 +11,7 @@ CopyLeft - https://github.com/ink-ru/sm_clean
 // TODO Добавть ключь cli - HTTP_HOST
 // TODO обрабатывать 'Clean-param'
 // TODO разбивать однострочные файлы на строки
+// TODO вфбирать нужный UserAgnt, например не обрабатыать User-Agent: EmailCollector
 
 set_time_limit(240);
 
@@ -86,15 +87,17 @@ foreach ($sR as $key => $value)
 			$value = preg_replace('~^([^#]*)#~i', "$1", $value); // comment removing
 		}
 		
-		if(!preg_match('#^\s*Disallow\s*:#i', $value))
+		if(!preg_match('#^\s*Disallow\s*:#i', $value) ||
+			preg_match('#^\s*Disallow\s*:\s*/\s*$#i', $value))
 		{
-			unset($sR[$key]);
+			$sR[$key] = ''; // doing unset($sR[$key]);
 			continue;
 		}
 		else $sR[$key] = preg_replace('#^\s*Disallow\s*:\s*#i', '', $value);
 	}
 }
 
+$sR = array_filter($sR); // удаляем пустые элементы
 $sR = array_unique($sR);
 log_push('найдено '.sizeof($sR).' правил(а)');
 
