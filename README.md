@@ -8,7 +8,7 @@ Works both in browser and in command line
 // 						CLI usage						 //
 // ===================================================== //
 
-Usage in windos .bat file:
+Usage in windows .bat file:
 @echo OFF
 @chcp 65001
 "C:\OpenServer\modules\php\PHP-5.6\php.exe" smap_clean.php %*
